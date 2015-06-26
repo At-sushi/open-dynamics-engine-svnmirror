@@ -56,23 +56,23 @@ void dMultiplySSE0_333(dReal *A, const dReal *B, const dReal *C);
 
 ODE_PURE_INLINE int cpuid()
 {
-    int res;
-    int info[4] = {0};
+  int res;
+  int info[4] = {0};
 
-    __try
-    {
+  __try
+  {
 #ifdef __GNUC__
-		__cpuid(1, info[0], info[1], info[2], info[3]);
+    __cpuid(1, info[0], info[1], info[2], info[3]);
 #else
-		__cpuid(info, 1);
+    __cpuid(info, 1);
 #endif // __GNUC__
-		res = info[3];
-    } __except(EXCEPTION_EXECUTE_HANDLER)
-    {
-        return 0;
-    }
+    res = info[3];
+  } __except(EXCEPTION_EXECUTE_HANDLER)
+  {
+    return 0;
+  }
 
-    return res;
+  return res;
 }
 #endif
 
