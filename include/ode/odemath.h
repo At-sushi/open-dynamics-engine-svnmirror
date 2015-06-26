@@ -41,6 +41,41 @@
 
 
 
+#if ( ((defined(_WIN32) && !defined(_WIN32_WCE)) || ((__GNUC__ >= 3) && defined(__i386__))) && defined(dSINGLE) )
+#define USE_X86SIMD
+#include <xmmintrin.h>	// ŽŽ‚µ“Ç‚Ý
+#include <mm3dnow.h>
+#include <excpt.h>
+#include <intrin.h>
+#ifdef __GNUC__
+#include <cpuid.h>
+#endif // __GNUC__
+
+int cpuid();
+void dMultiplySSE0_333(dReal *A, const dReal *B, const dReal *C);
+
+ODE_PURE_INLINE int cpuid()
+{
+    int res;
+    int info[4] = {0};
+
+    __try
+    {
+#ifdef __GNUC__
+		__cpuid(1, info[0], info[1], info[2], info[3]);
+#else
+		__cpuid(info, 1);
+#endif // __GNUC__
+		res = info[3];
+    } __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+
+    return res;
+}
+#endif
+
 /* Some vector math */
 ODE_PURE_INLINE void dAddVectors3(dReal *res, const dReal *a, const dReal *b)
 {
@@ -300,6 +335,24 @@ ODE_PURE_INLINE void dMultiplyHelper1_133(dReal *res, const dReal *a, const dRea
   res[0] = res_0; res[1] = res_1; res[2] = res_2;
 }
 
+#ifdef USE_X86SIMD
+ODE_PURE_INLINE void dMultiplySSE0_333(dReal *A, const dReal *B, const dReal *C)
+{
+  __m128 dmat1 = _mm_loadu_ps(C),
+    dmat2 = _mm_loadu_ps(C+4),
+    dmat3 = _mm_loadu_ps(C+8);
+
+  for (int i = 0; i < 4*3; i += 4){
+    __m128 row, tmp = _mm_loadu_ps(B+i);
+
+    row = _mm_mul_ps(_mm_shuffle_ps(tmp, tmp, _MM_SHUFFLE(3,0,0,0)), dmat1);
+    row = _mm_add_ps(row, _mm_mul_ps(_mm_shuffle_ps(tmp, tmp, _MM_SHUFFLE(3,1,1,1)), dmat2));
+    row = _mm_add_ps(row, _mm_mul_ps(_mm_shuffle_ps(tmp, tmp, _MM_SHUFFLE(3,2,2,2)), dmat3));
+    _mm_storeu_ps(A+i, row);
+  }
+}
+#endif
+
 /* 
 Note: NEVER call any of these functions/macros with the same variable for A and C, 
 it is not equivalent to A*=B.
@@ -322,9 +375,17 @@ ODE_PURE_INLINE void dMultiply0_133(dReal *res, const dReal *a, const dReal *b)
 
 ODE_PURE_INLINE void dMultiply0_333(dReal *res, const dReal *a, const dReal *b)
 {
+#ifdef USE_X86SIMD
+  if (cpuid() & (1<<25))
+    dMultiplySSE0_333(res, a, b);
+  else {
+#endif
   dMultiplyHelper0_133(res + 0, a + 0, b);
   dMultiplyHelper0_133(res + 4, a + 4, b);
   dMultiplyHelper0_133(res + 8, a + 8, b);
+#ifdef USE_X86SIMD
+  }
+#endif
 }
 
 ODE_PURE_INLINE void dMultiply1_333(dReal *res, const dReal *a, const dReal *b)
